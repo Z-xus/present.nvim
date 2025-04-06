@@ -52,6 +52,12 @@ M.start_presentation = function(opts)
   opts = opts or {}
   opts.bufnr = opts.bufnr or 0
 
+  local filetype = vim.api.nvim_get_option_value("filetype", { buf = opts.bufnr })
+  if filetype ~= "markdown" then
+    vim.notify("Presentation only works on markdown files", vim.log.levels.WARN)
+    return
+  end
+
   local lines = vim.api.nvim_buf_get_lines(opts.bufnr, 0, -1, false)
   local parsed = parse_slides(lines)
 
@@ -65,16 +71,18 @@ M.start_presentation = function(opts)
       width = width,
       height = 1,
       style = "minimal",
-      col = 1,
+      border = "rounded",
+      col = 0,
       row = 0,
     },
     body = {
       relative = "editor",
       width = width,
-      height = height - 1,
+      height = height - 5,
       style = "minimal",
+      border = { " ", " ", " ", " ", " ", " ", " ", " " },
       col = 1,
-      row = 1,
+      row = 4,
     },
     -- footer = {}
   }
@@ -85,18 +93,23 @@ M.start_presentation = function(opts)
   vim.bo[header_float.buf].filetype = "markdown"
   vim.bo[body_float.buf].filetype = "markdown"
 
+  vim.api.nvim_win_set_option(header_float.win, "winhl", "Normal:Normal")
+  vim.api.nvim_win_set_option(body_float.win, "winhl", "Normal:Normal")
+
   vim.api.nvim_set_current_win(body_float.win)
 
   local set_slide_content = function(idx)
     local slide = parsed.slides[idx]
-    vim.api.nvim_buf_set_lines(header_float.buf, 0, -1, false, { slide.title })
+
+    local padding = string.rep(" ", (width - #slide.title) / 2)
+    local title = padding .. slide.title
+    vim.api.nvim_buf_set_lines(header_float.buf, 0, -1, false, { title })
     vim.api.nvim_buf_set_lines(body_float.buf, 0, -1, false, slide.body)
   end
 
   local current_slide = 1
   vim.keymap.set("n", "n", function()
     current_slide = math.min(current_slide + 1, #parsed.slides)
-    -- vim.api.nvim_buf_set_lines(float.buf, 0, -1, false, parsed.slides[current_slide])
     set_slide_content(current_slide)
   end, {
     buffer = body_float.buf,
@@ -104,7 +117,6 @@ M.start_presentation = function(opts)
 
   vim.keymap.set("n", "p", function()
     current_slide = math.max(current_slide - 1, 1)
-    -- vim.api.nvim_buf_set_lines(float.buf, 0, -1, false, parsed.slides[current_slide])
     set_slide_content(current_slide)
   end, {
     buffer = body_float.buf,
@@ -139,44 +151,9 @@ M.start_presentation = function(opts)
     end,
   })
 
-  -- vim.api.nvim_buf_set_lines(float.buf, 0, -1, false, parsed.slides[1])
   set_slide_content(current_slide)
 end
 
--- vim.print(parse_slides {
---   "# Hello",
---   "this is something else",
---   "# World",
---   "this is another thing",
--- })
--- M.start_presentation({ bufnr = 29 })
-
-local path = vim.fn.expand("~/test.md")
-local resolved_path = vim.fn.resolve(path)
-
-local found_bufnr = nil
-
-for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
-  if vim.api.nvim_buf_is_loaded(bufnr) then
-    local buf_path = vim.fn.resolve(vim.api.nvim_buf_get_name(bufnr))
-    if buf_path == resolved_path then
-      found_bufnr = bufnr
-      break
-    end
-  end
-end
-
--- If not found, open the file and get its bufnr
-if not found_bufnr and vim.fn.filereadable(resolved_path) == 1 then
-  vim.cmd("edit " .. resolved_path)
-  found_bufnr = vim.api.nvim_get_current_buf()
-end
-
--- If we have a bufnr now, start presentation
-if found_bufnr then
-  M.start_presentation({ bufnr = found_bufnr })
-else
-  vim.notify("Could not find or open ~/test.md", vim.log.levels.ERROR)
-end
+-- M.start_presentation()
 
 return M
